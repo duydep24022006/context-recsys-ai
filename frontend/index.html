@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gợi ý sản phẩm theo ngữ cảnh</title>
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.38/dist/vue.global.prod.js"></script>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#16202a;--mute:#5d6b79;--line:#dde2e8;--accent:#0b6e6e;--accent-ink:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#11171d;--panel:#18212a;--ink:#e8edf2;--mute:#93a1ae;--line:#2a3743;--accent:#3cc0b0;--accent-ink:#06201d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,sans-serif}
+header{padding:20px 24px;border-bottom:1px solid var(--line);background:var(--panel)}
+h1{margin:0;font-size:20px}
+header p{margin:2px 0 0;color:var(--mute)}
+main{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:20px;padding:20px 24px;max-width:1200px;margin:auto}
+@media (max-width:860px){main{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+h2{margin:0 0 12px;font-size:16px}
+form{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:14px}
+label{display:flex;flex-direction:column;font-size:13px;color:var(--mute);gap:4px}
+input,select{padding:7px 9px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);font:inherit;width:100px}
+button{padding:8px 16px;border:0;border-radius:4px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mute);font-weight:600}
+.meta{color:var(--mute);font-size:13px;margin:0 0 8px}
+.err{color:#c0392b}
+.num{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <h1>Gợi ý sản phẩm theo ngữ cảnh</h1>
+  <p>Mô hình: <b>{{ health.model_loaded ? 'đã nạp (Production)' : 'chưa nạp' }}</b></p>
+</header>
+<main>
+  <section>
+    <h2>Gợi ý cho người dùng</h2>
+    <form @submit.prevent="recommend">
+      <label>User ID<input type="number" min="1" max="500" v-model.number="f.user_id"></label>
+      <label>Thiết bị
+        <select v-model="f.device"><option value="mobile">Mobile</option><option value="desktop">Desktop</option></select>
+      </label>
+      <label>Giờ (0–23)<input type="number" min="0" max="23" v-model.number="f.hour"></label>
+      <label>Top K<input type="number" min="1" max="50" v-model.number="f.top_k"></label>
+      <button type="submit">Lấy gợi ý</button>
+    </form>
+    <p v-if="error" class="err">{{ error }}</p>
+    <p v-else-if="!result" class="meta">Chọn ngữ cảnh rồi bấm “Lấy gợi ý”.</p>
+    <template v-else>
+      <p class="meta">{{ result.items.length }} sản phẩm · {{ result.latency_ms }} ms</p>
+      <div class="scroll"><table>
+        <tr><th>#</th><th>Sản phẩm</th><th>Danh mục</th><th>Giá ($)</th></tr>
+        <tr v-for="(it,i) in result.items" :key="it.product_id">
+          <td class="num">{{ i+1 }}</td><td>{{ it.title }}</td><td>{{ it.category }}</td><td class="num">{{ it.price.toFixed(2) }}</td>
+        </tr>
+      </table></div>
+    </template>
+  </section>
+  <section>
+    <h2>Giao dịch gần đây</h2>
+    <div class="scroll"><table>
+      <tr><th>Thời gian</th><th>User</th><th>Sản phẩm</th><th>Hành vi</th><th>Thiết bị</th></tr>
+      <tr v-for="(r,i) in recent" :key="i">
+        <td>{{ r.timestamp.slice(0,16) }}</td><td class="num">{{ r.user_id }}</td><td>{{ r.title }}</td><td>{{ r.event_type }}</td><td>{{ r.device_type }}</td>
+      </tr>
+    </table></div>
+  </section>
+</main>
+</div>
+<script>
+const { createApp, reactive, ref, onMounted } = Vue;
+createApp({
+  setup() {
+    const f = reactive({ user_id: 15, device: 'mobile', hour: 20, top_k: 10 });
+    const result = ref(null), error = ref(''), recent = ref([]), health = reactive({ model_loaded: false });
+    async function recommend() {
+      error.value = '';
+      try {
+        const r = await fetch('/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
+        if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+        result.value = await r.json();
+      } catch (e) { error.value = 'Không lấy được gợi ý: ' + e.message; }
+    }
+    async function load() {
+      try { Object.assign(health, await (await fetch('/health')).json()); } catch (e) {}
+      try { recent.value = await (await fetch('/interactions/recent?limit=20')).json(); } catch (e) {}
+    }
+    onMounted(() => { load(); setInterval(load, 10000); });
+    return { f, result, error, recent, health, recommend };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

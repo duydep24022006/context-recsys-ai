@@ -1,0 +1,60 @@
+﻿services:
+  mlflow-server:
+    build: .
+    container_name: recsys-mlflow
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:////app/mlflow_store/mlflow.db
+      --default-artifact-root /app/mlflow_store/mlruns
+      --host 0.0.0.0
+      --port 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlflow_store:/app/mlflow_store
+      - ./shared_data:/app/shared_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  prefect-orchestrator:
+    build: .
+    container_name: recsys-prefect
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5000
+      - DATA_DIR=/app/shared_data
+    volumes:
+      - ./shared_data:/app/shared_data
+      - ./mlflow_store:/app/mlflow_store
+    command: python src/flow_retrain.py --serve
+
+  recsys-api:
+    build: .
+    container_name: recsys-api
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5000
+      - DATA_DIR=/app/shared_data
+    volumes:
+      - ./shared_data:/app/shared_data
+      - ./mlflow_store:/app/mlflow_store
+    ports:
+      - "8000:8000"
+    command: uvicorn api:app --app-dir src --host 0.0.0.0 --port 8000
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: recsys-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - recsys-api
