@@ -1,10 +1,15 @@
-name: CI
+name: CI/CD MLOps Pipeline
+
 on:
   push:
     branches: [main]
   pull_request:
+
+env:
+  REGISTRY: ghcr.io
+
 jobs:
-  test:
+  lint-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -12,13 +17,59 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: sudo apt-get update && sudo apt-get install -y libgomp1
-      - run: pip install -r requirements.docker.txt pytest httpx ruff
-      - run: ruff check src tests --select E9,F
-      - run: pytest -q
-  docker:
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgomp1
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Lint with Ruff
+        run: ruff check src tests scripts --select E9,F
+      - name: Prepare dataset
+        run: python src/prepare_data.py --source synthetic
+      - name: Run Pytest with Coverage
+        run: pytest --cov=src --cov-report=term-missing -q
+
+  docker-smoke-and-publish:
     runs-on: ubuntu-latest
-    needs: test
+    needs: lint-and-test
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t recsys-api .
+      - uses: docker/setup-buildx-action@v3
+      - name: Prepare data for Compose smoke test
+        run: |
+          mkdir -p shared_data mlflow_store docs/results docs/figures
+      - name: Build and start Docker Compose stack
+        run: |
+          docker compose up -d --build mlflow-server recsys-api frontend prometheus grafana
+      - name: Wait for API health and run smoke test
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health; then break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:8000/health | grep '"status":"ok"'
+          curl -sf -X POST http://localhost:8000/recommend \
+            -H "Content-Type: application/json" \
+            -d '{"user_id":15,"device":"mobile","hour":20,"top_k":10}' | grep '"items"'
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push Backend & Frontend Images to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker build -t $REGISTRY/$OWNER_LC/context-recsys-api:latest .
+          docker build -t $REGISTRY/$OWNER_LC/context-recsys-frontend:latest ./frontend
+          docker push $REGISTRY/$OWNER_LC/context-recsys-api:latest
+          docker push $REGISTRY/$OWNER_LC/context-recsys-frontend:latest
