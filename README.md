@@ -1,6 +1,6 @@
 # Context-Aware E-commerce Recommender (MLOps)
 
-[![CI/CD MLOps Pipeline](https://github.com/context-recsys-ai/context-recsys-ai/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
+[![CI/CD MLOps Pipeline](https://github.com/duydep24022006/context-recsys-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/duydep24022006/context-recsys-ai/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 ![MLflow](https://img.shields.io/badge/MLflow-Model%20Registry-0194E2.svg)
 ![Prefect](https://img.shields.io/badge/Prefect-3.x-024DFD.svg)
