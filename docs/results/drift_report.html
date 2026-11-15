@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Báo cáo Data Drift — Context-Aware Recommender</title>
+<style>
+body { font-family: system-ui, -apple-system, sans-serif; margin: 32px auto; max-width: 960px; color: #16202a; background: #f6f7f9; padding: 0 20px; }
+.card { background: #fff; border: 1px solid #dde2e8; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+h1 { margin-top: 0; font-size: 22px; }
+h2 { margin-top: 0; font-size: 17px; color: #0b6e6e; }
+.badge { display: inline-block; padding: 5px 12px; border-radius: 99px; font-size: 13px; font-weight: 700; }
+.badge.ok { background: #e1f5f2; color: #0b6e6e; }
+.badge.drift { background: #fdecea; color: #c0392b; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #dde2e8; }
+th { color: #5d6b79; }
+.bar { display: inline-block; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
+.bar.ref { background: #5d6b79; }
+.bar.cur { background: #0b6e6e; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Báo cáo Giám sát Data Drift (PSI &amp; KS-Test) <span class="badge ok">NO SIGNIFICANT DRIFT</span></h1>
+  <p>Thời gian tạo: <code>2026-11-15T01:27:05.335964+00:00</code> · Reference: <b>16000</b> dòng · Current: <b>4000</b> dòng · Ngưỡng PSI: <b>0.15</b> (Max PSI: <b>0.0092</b>)</p>
+</div>
+<div class="card">
+  <h2>1. Bảng kiểm định Drift theo thuộc tính ngữ cảnh</h2>
+  <table>
+    <tr><th>Thuộc tính</th><th>PSI</th><th>KS / TVD Stat</th><th>p-value</th><th>Trạng thái</th></tr>
+    <tr><td><code>hour</code></td><td>0.0092</td><td>0.0167</td><td>0.33128</td><td><b style="color:#0b6e6e">STABLE</b></td></tr><tr><td><code>is_mobile</code></td><td>0.0005</td><td>0.0105</td><td>0.86838</td><td><b style="color:#0b6e6e">STABLE</b></td></tr><tr><td><code>category</code></td><td>0.0013</td><td>0.0147</td><td>0.98042</td><td><b style="color:#0b6e6e">STABLE</b></td></tr>
+  </table>
+</div>
+<div class="card">
+  <h2>2. Phân bố danh mục sản phẩm: Reference (Train) vs Current (Mới)</h2>
+  <table>
+    <tr><th>Danh mục</th><th>Reference (%)</th><th>Current (%)</th><th>Chênh lệch</th></tr>
+    <tr><td>Accessories</td><td><div class='bar ref' style='width:62px'></div> 20.8%</td><td><div class='bar cur' style='width:66px'></div> 22.1%</td><td>+1.3%</td></tr><tr><td>Books</td><td><div class='bar ref' style='width:48px'></div> 16.1%</td><td><div class='bar cur' style='width:48px'></div> 16.1%</td><td>+0.0%</td></tr><tr><td>Electronics</td><td><div class='bar ref' style='width:62px'></div> 20.8%</td><td><div class='bar cur' style='width:63px'></div> 20.9%</td><td>+0.1%</td></tr><tr><td>Fashion</td><td><div class='bar ref' style='width:73px'></div> 24.3%</td><td><div class='bar cur' style='width:70px'></div> 23.5%</td><td>-0.8%</td></tr><tr><td>Home</td><td><div class='bar ref' style='width:54px'></div> 18.0%</td><td><div class='bar cur' style='width:52px'></div> 17.3%</td><td>-0.7%</td></tr>
+  </table>
+</div>
+</body>
+</html>
